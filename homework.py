@@ -1,9 +1,9 @@
 import logging
 import os
 import requests
-import telegram
 import time
 
+import telegram
 from http import HTTPStatus
 from dotenv import load_dotenv
 from logging import StreamHandler
@@ -34,6 +34,12 @@ class TokenIsMissing(Exception):
     pass
 
 
+class NoResponse(Exception):
+    """Ошибка отсутствия ответа сервера."""
+
+    pass
+
+
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
@@ -50,7 +56,7 @@ def check_tokens():
     }
     token_is_missing = False
     for key in tokens:
-        if tokens[key] is None:
+        if tokens.get(key) is None:
             message = f'Токен {key} не передан.'
             logger.critical(message, exc_info=False)
             token_is_missing = True
@@ -86,7 +92,7 @@ def check_response(response):
     """Проверка ответа API."""
     if response is None:
         logger.error('Отсутствует ответ от сервера')
-        return None
+        raise NoResponse('Отсутствует ответ от сервера')
     elif isinstance(response, dict):
         homeworks = response.get('homeworks')
         if isinstance(homeworks, list):
@@ -96,7 +102,7 @@ def check_response(response):
         )
     elif isinstance(response, list):
         raise TypeError('Данные должны быть в виде словаря')
-    elif response.status_code != 200:
+    elif response.status_code != HTTPStatus.OK:
         logger.error(f'Ошибка запроса к API: код: {response.status_code}')
         return None
 
