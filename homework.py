@@ -13,6 +13,7 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+NO_RESPONSE = 'Отсутствует ответ от сервера'
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s, %(levelname)s, %(message)s',
@@ -26,6 +27,7 @@ logger.addHandler(handler)
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
+good_ans = 'Сообщение отправлено'
 
 
 class TokenIsMissing(Exception):
@@ -36,6 +38,12 @@ class TokenIsMissing(Exception):
 
 class NoResponse(Exception):
     """Ошибка отсутствия ответа сервера."""
+
+    pass
+
+
+class StatusError(Exception):
+    """Ошибка статуса ответа."""
 
     pass
 
@@ -69,6 +77,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.debug(f'Сообщение {message} отправлено.')
+        return good_ans
     except telegram.error.TelegramError as error:
         logger.error(f'Сообщение не отправлено. Ошибка: {error}.')
 
@@ -83,7 +92,7 @@ def get_api_answer(timestamp):
         )
         if response.status_code == HTTPStatus.OK:
             return response.json()
-        raise Exception(f'Статус запроса: {response.status_code}')
+        raise StatusError(f'Статус запроса: {response.status_code}')
     except requests.RequestException as error:
         logger.error(f'Ошибка при запросе к API сервиса. {error}')
 
@@ -91,8 +100,8 @@ def get_api_answer(timestamp):
 def check_response(response):
     """Проверка ответа API."""
     if response is None:
-        logger.error('Отсутствует ответ от сервера')
-        raise NoResponse('Отсутствует ответ от сервера')
+        logger.error(NO_RESPONSE)
+        raise NoResponse(NO_RESPONSE)
     elif isinstance(response, dict):
         homeworks = response.get('homeworks')
         if isinstance(homeworks, list):
@@ -104,7 +113,7 @@ def check_response(response):
         raise TypeError('Данные должны быть в виде словаря')
     elif response.status_code != HTTPStatus.OK:
         logger.error(f'Ошибка запроса к API: код: {response.status_code}')
-        return None
+        raise StatusError('Ошибка статуса запроса')
 
 
 def parse_status(homework):
@@ -142,7 +151,8 @@ def main():
             message = f'Сбой в работе программы: {error}'
             if message != last_error_messsage:
                 send_message(bot=bot, message=message)
-                last_error_messsage = message
+                if send_message(bot=bot, message=message) == good_ans:
+                    last_error_messsage = message
             logger.exception(message, exc_info=False)
         finally:
             time.sleep(RETRY_PERIOD)
