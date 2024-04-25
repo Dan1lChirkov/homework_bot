@@ -27,7 +27,6 @@ logger.addHandler(handler)
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-good_ans = 'Сообщение отправлено'
 
 
 class TokenIsMissing(Exception):
@@ -62,14 +61,11 @@ def check_tokens():
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
         'TELEGRAM_CHAT_ID:': TELEGRAM_CHAT_ID
     }
-    token_is_missing = False
     for key in tokens:
         if tokens.get(key) is None:
             message = f'Токен {key} не передан.'
             logger.critical(message, exc_info=False)
-            token_is_missing = True
-    if token_is_missing:
-        raise TokenIsMissing('Некоторые токены не найдены')
+            raise TokenIsMissing('Некоторые токены не найдены')
 
 
 def send_message(bot, message):
@@ -77,7 +73,7 @@ def send_message(bot, message):
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logger.debug(f'Сообщение {message} отправлено.')
-        return good_ans
+        return True
     except telegram.error.TelegramError as error:
         logger.error(f'Сообщение не отправлено. Ошибка: {error}.')
 
@@ -150,8 +146,7 @@ def main():
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != last_error_messsage:
-                send_message(bot=bot, message=message)
-                if send_message(bot=bot, message=message) == good_ans:
+                if send_message(bot=bot, message=message) is True:
                     last_error_messsage = message
             logger.exception(message, exc_info=False)
         finally:
